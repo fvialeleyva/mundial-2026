@@ -1,26 +1,44 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+
+  /* Brand colors */
+  --color-espresso:        #1A1208;
+  --color-espresso-light:  #251910;
+  --color-espresso-medium: #2E2016;
+  --color-espresso-border: #3D2B18;
+  --color-verde:           #3EBD7A;
+  --color-verde-dim:       #2A8A58;
+  --color-crema:           #F0E8D4;
+  --color-muted:           #9A8878;
+  --color-naranja:         #F4A261;
+  --color-rojo:            #E63946;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+:root {
+  --background: #1A1208;
+  --foreground: #F0E8D4;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans), system-ui, -apple-system, sans-serif;
 }
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.4; }
+}
+
+@keyframes live-pulse {
+  0%, 100% { background: rgba(230, 57, 70, 0.07); }
+  50%       { background: rgba(230, 57, 70, 0.13); }
+}
+
+.animate-blink     { animation: blink 2s ease-in-out infinite; }
+.animate-live      { animation: live-pulse 2s ease-in-out infinite; }
