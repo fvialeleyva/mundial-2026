@@ -4,7 +4,10 @@ import { useState, useEffect, useCallback } from "react";
 import { MATCHES, STAGE_NAMES } from "@/lib/matches";
 import { limaDateKey, todayKey, dayLabel, gcalDate } from "@/lib/timezone";
 import MatchCard from "./MatchCard";
+import AuthButton from "./AuthButton";
+import { createClient } from "@/lib/supabase/client";
 import { Match } from "@/types";
+import { User } from "@supabase/supabase-js";
 
 type Tab = "hoy" | "todos" | "lista";
 
@@ -53,13 +56,43 @@ export default function Tracker() {
   const [stars, setStars] = useState<Record<number, boolean>>({});
   const [calDone, setCalDone] = useState<Record<number, boolean>>({});
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [, forceUpdate] = useState(0);
 
-  // Load from localStorage on mount
+  const supabase = createClient();
+
+  // Auth listener
   useEffect(() => {
-    setStars(JSON.parse(localStorage.getItem("wc26_stars") || "{}"));
-    setCalDone(JSON.parse(localStorage.getItem("wc26_cal") || "{}"));
+    supabase.auth.getUser().then(({ data }) => setUser(data.user));
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => {
+      setUser(session?.user ?? null);
+    });
+    return () => subscription.unsubscribe();
   }, []);
+
+  // Load watchlist — Supabase si hay usuario, localStorage si no
+  useEffect(() => {
+    if (user) {
+      supabase
+        .from("watchlist")
+        .select("match_id, google_event_id")
+        .eq("user_id", user.id)
+        .then(({ data }) => {
+          if (!data) return;
+          const s: Record<number, boolean> = {};
+          const c: Record<number, boolean> = {};
+          data.forEach(row => {
+            s[row.match_id] = true;
+            if (row.google_event_id) c[row.match_id] = true;
+          });
+          setStars(s);
+          setCalDone(c);
+        });
+    } else {
+      setStars(JSON.parse(localStorage.getItem("wc26_stars") || "{}"));
+      setCalDone(JSON.parse(localStorage.getItem("wc26_cal") || "{}"));
+    }
+  }, [user]);
 
   // Re-render every 30s to update live status
   useEffect(() => {
@@ -67,22 +100,32 @@ export default function Tracker() {
     return () => clearInterval(t);
   }, []);
 
-  // Toast helper
   const showToast = useCallback((msg: string, ok = true) => {
     setToast({ msg, ok });
     setTimeout(() => setToast(null), 3200);
   }, []);
 
-  const toggleStar = useCallback((id: number) => {
+  const toggleStar = useCallback(async (id: number) => {
+    const isStarred = !!stars[id];
+
+    // Optimistic update
     setStars(prev => {
       const next = { ...prev };
       if (next[id]) delete next[id]; else next[id] = true;
-      localStorage.setItem("wc26_stars", JSON.stringify(next));
+      if (!user) localStorage.setItem("wc26_stars", JSON.stringify(next));
       return next;
     });
-  }, []);
 
-  const addCal = useCallback((id: number) => {
+    if (user) {
+      if (isStarred) {
+        await supabase.from("watchlist").delete().eq("user_id", user.id).eq("match_id", id);
+      } else {
+        await supabase.from("watchlist").upsert({ user_id: user.id, match_id: id });
+      }
+    }
+  }, [stars, user]);
+
+  const addCal = useCallback(async (id: number) => {
     const m = MATCHES.find(x => x.id === id);
     if (!m) return;
     const title = m.f1
@@ -92,13 +135,23 @@ export default function Tracker() {
     const endU = new Date(new Date(m.u).getTime() + 2 * 3600_000).toISOString();
     const url = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(title)}&dates=${gcalDate(m.u)}/${gcalDate(endU)}&details=${encodeURIComponent(desc)}&location=${encodeURIComponent(m.v)}`;
     window.open(url, "_blank");
+
     setCalDone(prev => {
       const next = { ...prev, [id]: true };
-      localStorage.setItem("wc26_cal", JSON.stringify(next));
+      if (!user) localStorage.setItem("wc26_cal", JSON.stringify(next));
       return next;
     });
+
+    if (user) {
+      await supabase.from("watchlist").upsert({
+        user_id: user.id,
+        match_id: id,
+        google_event_id: `gcal-${id}`,
+      });
+    }
+
     showToast("📅 Abriendo Google Calendar…");
-  }, [showToast]);
+  }, [user, showToast]);
 
   // Stats
   const today = todayKey();
@@ -120,13 +173,14 @@ export default function Tracker() {
       <header className="bg-gradient-to-br from-[#110D06] via-[#1D1409] to-espresso-light border-b border-espresso-border px-5 py-4">
         <div className="max-w-2xl mx-auto flex items-center gap-3">
           <span className="text-3xl">⚽</span>
-          <div>
+          <div className="flex-1">
             <div className="text-xl font-extrabold tracking-tight text-crema">Mundial 2026</div>
             <div className="text-xs text-muted mt-0.5">
               <span className="inline-block w-2 h-2 bg-verde rounded-full mr-1.5 animate-blink" />
               USA · México · Canadá &nbsp;·&nbsp; 11 Jun – 19 Jul &nbsp;·&nbsp; Hora Lima (UTC-5)
             </div>
           </div>
+          <AuthButton />
         </div>
       </header>
 
@@ -166,6 +220,14 @@ export default function Tracker() {
           ))}
         </div>
 
+        {/* Login prompt si no hay usuario */}
+        {!user && (
+          <div className="flex items-center gap-3 rounded-xl px-4 py-3 mb-4 border border-espresso-border bg-espresso-light text-xs text-muted">
+            <span>🔑</span>
+            <span>Entra con Google para sincronizar tu lista entre dispositivos</span>
+          </div>
+        )}
+
         {/* Stage filter (tab Todos) */}
         {tab === "todos" && (
           <div className="flex flex-wrap gap-1.5 mb-4">
@@ -186,7 +248,7 @@ export default function Tracker() {
           </div>
         )}
 
-        {/* Today banner (si hay partidos marcados hoy) */}
+        {/* Today banner */}
         {tab === "hoy" && (() => {
           const starredToday = todayMatches.filter(m => stars[m.id]);
           if (!starredToday.length) return null;
