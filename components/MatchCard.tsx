@@ -11,6 +11,15 @@ interface Props {
   onAddCal: (id: number) => void;
 }
 
+function flagToIso(flag: string): string {
+  const cps = [...flag].map(c => c.codePointAt(0)!);
+  if (cps.length === 2 && cps[0] >= 0x1F1E6 && cps[0] <= 0x1F1FF) {
+    return String.fromCharCode(cps[0] - 0x1F1E6 + 65) +
+           String.fromCharCode(cps[1] - 0x1F1E6 + 65);
+  }
+  return "";
+}
+
 const KICKER_LABELS = [
   "Fase de Grupos", "Ronda de 32", "Octavos de Final",
   "Cuartos de Final", "Semifinal", "3.er Puesto", "La Final",
@@ -115,7 +124,14 @@ export default function MatchCard({ match: m, starred, calDone, onToggleStar, on
 
           {/* Team 1 */}
           <div className="flex items-center gap-[7px]">
-            {m.f1 && <span className="text-[23px] leading-none shrink-0">{m.f1}</span>}
+            {m.f1 && flagToIso(m.f1) && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={`https://flagcdn.com/w40/${flagToIso(m.f1).toLowerCase()}.png`}
+                width={28} height={20} alt=""
+                className="shrink-0 rounded-[2px] border border-hairline object-cover"
+              />
+            )}
             <span className={`font-display font-[800] text-[22px] uppercase tracking-[0.01em] leading-[0.9] flex-1 min-w-0 truncate ${nameColor(loser1)}`}>
               {m.t1}
             </span>
@@ -128,7 +144,14 @@ export default function MatchCard({ match: m, starred, calDone, onToggleStar, on
 
           {/* Team 2 */}
           <div className="flex items-center gap-[7px]">
-            {m.f2 && <span className="text-[23px] leading-none shrink-0">{m.f2}</span>}
+            {m.f2 && flagToIso(m.f2) && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={`https://flagcdn.com/w40/${flagToIso(m.f2).toLowerCase()}.png`}
+                width={28} height={20} alt=""
+                className="shrink-0 rounded-[2px] border border-hairline object-cover"
+              />
+            )}
             <span className={`font-display font-[800] text-[22px] uppercase tracking-[0.01em] leading-[0.9] flex-1 min-w-0 truncate ${nameColor(loser2)}`}>
               {m.t2}
             </span>
