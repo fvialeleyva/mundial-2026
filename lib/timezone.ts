@@ -38,6 +38,30 @@ export function gcalDate(utc: string): string {
   return new Date(utc).toISOString().replace(/[-:.]/g, "").slice(0, 15) + "Z";
 }
 
+export function dateKeyForTz(utc: string, tz: string): string {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: tz,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date(utc));
+  const get = (t: string) => parts.find(p => p.type === t)?.value ?? "";
+  return `${get("year")}-${get("month")}-${get("day")}`;
+}
+
+export function todayForTz(tz: string): string {
+  return dateKeyForTz(new Date().toISOString(), tz);
+}
+
+export function localTimeForTz(utc: string, tz: string): string {
+  return new Intl.DateTimeFormat("es", {
+    timeZone: tz,
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(new Date(utc));
+}
+
 export function isPast(utc: string): boolean {
   const end = new Date(new Date(utc).getTime() + 110 * 60 * 1000);
   return end < new Date();
