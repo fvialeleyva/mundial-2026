@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { MATCHES, STAGE_NAMES } from "@/lib/matches";
-import { limaDateKey, todayKey, dayLabel, gcalDate } from "@/lib/timezone";
+import { limaDateKey, todayKey, dayLabel, gcalDate, isLive, isPast } from "@/lib/timezone";
 import MatchCard from "./MatchCard";
 import AuthButton from "./AuthButton";
 import { createClient } from "@/lib/supabase/client";
@@ -10,6 +10,16 @@ import { Match } from "@/types";
 import { User } from "@supabase/supabase-js";
 
 type Tab = "hoy" | "todos" | "lista";
+
+const STAGE_DISPLAY = [
+  "Fase de Grupos", "Ronda de 32", "Octavos de Final",
+  "Cuartos de Final", "Semifinal", "3.er Puesto", "★ La Final",
+];
+
+// Colors used for stage headers via inline style (avoids Tailwind JIT missing dynamic classes)
+const STAGE_HEADER_COLOR = [
+  "#1B1714", "#2B53C2", "#2B53C2", "#2B53C2", "#B5860F", "#B5860F", "#B5860F",
+];
 
 function groupByDay(matches: Match[]) {
   const groups: Record<string, Match[]> = {};
@@ -21,36 +31,71 @@ function groupByDay(matches: Match[]) {
   return groups;
 }
 
-function DayGroup({ dateKey, matches, stars, calDone, onToggleStar, onAddCal }: {
-  dateKey: string;
-  matches: Match[];
-  stars: Record<number, boolean>;
-  calDone: Record<number, boolean>;
-  onToggleStar: (id: number) => void;
-  onAddCal: (id: number) => void;
-}) {
-  const isToday = dateKey === todayKey();
-  const sorted = [...matches].sort((a, b) => new Date(a.u).getTime() - new Date(b.u).getTime());
+function groupByStage(matches: Match[]) {
+  const groups: Record<number, Match[]> = {};
+  for (const m of matches) {
+    if (!groups[m.s]) groups[m.s] = [];
+    groups[m.s].push(m);
+  }
+  return groups;
+}
+
+function sortedByTime(matches: Match[]) {
+  return [...matches].sort((a, b) => new Date(a.u).getTime() - new Date(b.u).getTime());
+}
+
+function SectionHeader({ label, color }: { label: string; color: string }) {
   return (
-    <div className="mb-5">
-      <div className={`text-xs font-bold uppercase tracking-widest pb-2 border-b border-espresso-border mb-2.5 ${isToday ? "text-verde" : "text-muted"}`}>
-        {dayLabel(sorted[0].u, isToday)}
-      </div>
-      {sorted.map(m => (
-        <MatchCard
-          key={m.id}
-          match={m}
-          starred={!!stars[m.id]}
-          calDone={!!calDone[m.id]}
-          onToggleStar={onToggleStar}
-          onAddCal={onAddCal}
-        />
-      ))}
+    <div className="flex items-center gap-[10px] mt-[14px] mb-[10px]">
+      <span className="font-mono text-[10px] font-bold uppercase tracking-[0.12em] shrink-0" style={{ color }}>
+        {label}
+      </span>
+      <div className="flex-1 h-[2px] opacity-30" style={{ background: color }} />
     </div>
   );
 }
 
-export default function Tracker() {
+function DayHeader({ dateKey, firstMatchUtc }: { dateKey: string; firstMatchUtc: string }) {
+  const isToday = dateKey === todayKey();
+  return (
+    <div
+      className={`font-mono text-[10px] font-bold uppercase tracking-[0.1em] py-[14px] pb-2 border-b border-dashed border-hairline mb-[10px] ${
+        isToday ? "text-ink" : "text-muted"
+      }`}
+    >
+      {dayLabel(firstMatchUtc, isToday)}
+    </div>
+  );
+}
+
+function EmptyState({ icon, title, copy, cta, onCta }: {
+  icon: string; title: string; copy: string; cta: string; onCta: () => void;
+}) {
+  return (
+    <div className="flex flex-col items-center pt-12 pb-8 gap-[14px] text-center">
+      <div
+        className="w-[118px] h-[118px] rounded-full border-[3px] border-ink flex items-center justify-center text-[36px] mb-2"
+        style={{ boxShadow: "0 0 0 8px #F2ECDF, 0 0 0 11px #1B1714, 0 0 0 22px #F2ECDF, 0 0 0 25px #D8CDB7" }}
+      >
+        {icon}
+      </div>
+      <div
+        className="font-display font-[900] text-[30px] uppercase leading-[0.85]"
+        dangerouslySetInnerHTML={{ __html: title }}
+      />
+      <div className="text-[14px] text-muted leading-relaxed max-w-[240px]">{copy}</div>
+      <button
+        onClick={onCta}
+        className="font-display font-[800] text-[17px] uppercase tracking-[0.03em] bg-cobalt text-cream border-[2.5px] border-ink rounded-[6px] px-[22px] py-[11px] cursor-pointer shadow-hard-ink hover:bg-[#1E3E9C] transition-colors"
+      >
+        {cta}
+      </button>
+    </div>
+  );
+}
+
+export default function Tracker({ overrides = {} }: { overrides?: Record<number, Partial<Match>> }) {
+  const allMatches = MATCHES.map(m => ({ ...m, ...(overrides[m.id] ?? {}) }));
   const [tab, setTab] = useState<Tab>("hoy");
   const [stageFilter, setStageFilter] = useState(-1);
   const [stars, setStars] = useState<Record<number, boolean>>({});
@@ -61,7 +106,6 @@ export default function Tracker() {
 
   const supabase = createClient();
 
-  // Auth listener
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setUser(data.user));
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => {
@@ -70,13 +114,9 @@ export default function Tracker() {
     return () => subscription.unsubscribe();
   }, []);
 
-  // Load watchlist — Supabase si hay usuario, localStorage si no
   useEffect(() => {
     if (user) {
-      supabase
-        .from("watchlist")
-        .select("match_id, google_event_id")
-        .eq("user_id", user.id)
+      supabase.from("watchlist").select("match_id, google_event_id").eq("user_id", user.id)
         .then(({ data }) => {
           if (!data) return;
           const s: Record<number, boolean> = {};
@@ -85,8 +125,7 @@ export default function Tracker() {
             s[row.match_id] = true;
             if (row.google_event_id) c[row.match_id] = true;
           });
-          setStars(s);
-          setCalDone(c);
+          setStars(s); setCalDone(c);
         });
     } else {
       setStars(JSON.parse(localStorage.getItem("wc26_stars") || "{}"));
@@ -94,7 +133,6 @@ export default function Tracker() {
     }
   }, [user]);
 
-  // Re-render every 30s to update live status
   useEffect(() => {
     const t = setInterval(() => forceUpdate(n => n + 1), 30_000);
     return () => clearInterval(t);
@@ -107,26 +145,20 @@ export default function Tracker() {
 
   const toggleStar = useCallback(async (id: number) => {
     const isStarred = !!stars[id];
-
-    // Optimistic update
     setStars(prev => {
       const next = { ...prev };
       if (next[id]) delete next[id]; else next[id] = true;
       if (!user) localStorage.setItem("wc26_stars", JSON.stringify(next));
       return next;
     });
-
     if (user) {
-      if (isStarred) {
-        await supabase.from("watchlist").delete().eq("user_id", user.id).eq("match_id", id);
-      } else {
-        await supabase.from("watchlist").upsert({ user_id: user.id, match_id: id });
-      }
+      if (isStarred) await supabase.from("watchlist").delete().eq("user_id", user.id).eq("match_id", id);
+      else await supabase.from("watchlist").upsert({ user_id: user.id, match_id: id });
     }
   }, [stars, user]);
 
   const addCal = useCallback(async (id: number) => {
-    const m = MATCHES.find(x => x.id === id);
+    const m = allMatches.find(x => x.id === id);
     if (!m) return;
     const title = m.f1
       ? `⚽ ${m.t1} ${m.f1} vs ${m.f2} ${m.t2} — Mundial 2026`
@@ -135,178 +167,266 @@ export default function Tracker() {
     const endU = new Date(new Date(m.u).getTime() + 2 * 3600_000).toISOString();
     const url = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(title)}&dates=${gcalDate(m.u)}/${gcalDate(endU)}&details=${encodeURIComponent(desc)}&location=${encodeURIComponent(m.v)}`;
     window.open(url, "_blank");
-
     setCalDone(prev => {
       const next = { ...prev, [id]: true };
       if (!user) localStorage.setItem("wc26_cal", JSON.stringify(next));
       return next;
     });
-
     if (user) {
-      await supabase.from("watchlist").upsert({
-        user_id: user.id,
-        match_id: id,
-        google_event_id: `gcal-${id}`,
-      });
+      await supabase.from("watchlist").upsert({ user_id: user.id, match_id: id, google_event_id: `gcal-${id}` });
     }
-
     showToast("📅 Abriendo Google Calendar…");
   }, [user, showToast]);
 
-  // Stats
+  // Derived values
   const today = todayKey();
-  const todayMatches = MATCHES.filter(m => limaDateKey(m.u) === today);
-  const starCount = MATCHES.filter(m => stars[m.id] && !m.done).length;
-  const remaining = MATCHES.filter(m => !m.done).length;
+  const todayMatches = allMatches.filter(m => limaDateKey(m.u) === today);
+  const starCount  = allMatches.filter(m => stars[m.id] && !m.done).length;
+  const remaining  = allMatches.filter(m => !m.done).length;
 
-  // Matches to show per tab
-  let matchList: Match[] = [];
-  if (tab === "hoy")   matchList = todayMatches;
-  if (tab === "todos") matchList = stageFilter >= 0 ? MATCHES.filter(m => m.s === stageFilter) : MATCHES;
-  if (tab === "lista") matchList = MATCHES.filter(m => stars[m.id]);
+  const liveToday     = todayMatches.filter(m => isLive(m.u, m.done));
+  const upcomingToday = todayMatches.filter(m => !m.done && !isLive(m.u, m.done) && !isPast(m.u));
+  const doneToday     = todayMatches.filter(m => m.done || (isPast(m.u) && !isLive(m.u, m.done)));
 
-  const groups = groupByDay(matchList);
+  const todayDateStr = new Date().toLocaleDateString("es-PE", {
+    timeZone: "America/Lima", weekday: "short", day: "numeric", month: "short",
+  });
+
+  const cardProps = (m: Match) => ({
+    match: m,
+    starred: !!stars[m.id],
+    calDone: !!calDone[m.id],
+    onToggleStar: toggleStar,
+    onAddCal: addCal,
+  });
+
+  const NAV_ITEMS: { t: Tab; glyph: string; label: string }[] = [
+    { t: "hoy",   glyph: "◉",                       label: "HOY"     },
+    { t: "todos", glyph: "▦",                       label: "TODOS"   },
+    { t: "lista", glyph: starCount > 0 ? "★" : "☆", label: "MI LISTA" },
+  ];
 
   return (
-    <>
-      {/* Header */}
-      <header className="bg-gradient-to-br from-[#110D06] via-[#1D1409] to-espresso-light border-b border-espresso-border px-5 py-4">
-        <div className="max-w-2xl mx-auto flex items-center gap-3">
-          <span className="text-3xl">⚽</span>
-          <div className="flex-1">
-            <div className="text-xl font-extrabold tracking-tight text-crema">Mundial 2026</div>
-            <div className="text-xs text-muted mt-0.5">
-              <span className="inline-block w-2 h-2 bg-verde rounded-full mr-1.5 animate-blink" />
-              USA · México · Canadá &nbsp;·&nbsp; 11 Jun – 19 Jul &nbsp;·&nbsp; Hora Lima (UTC-5)
-            </div>
+    <div className="max-w-[390px] mx-auto min-h-screen flex flex-col bg-paper text-ink">
+
+      {/* ── HEADER ── */}
+      <header className="sticky top-0 z-10 bg-card border-b-[2.5px] border-ink px-4 py-[13px] flex items-center justify-between shrink-0">
+        <div className="flex items-center gap-[9px]">
+          <div
+            className="w-[26px] h-[26px] bg-ink rounded-full shrink-0"
+            style={{ boxShadow: "inset 0 0 0 4px #FCF8EE, inset 0 0 0 6px #1B1714" }}
+          />
+          <div className="font-display font-[900] text-[23px] uppercase tracking-[0.02em] leading-[0.9]">
+            Mundial &#x27;26
           </div>
-          <AuthButton />
         </div>
+        <AuthButton />
       </header>
 
-      {/* Tabs */}
-      <nav className="bg-espresso-light border-b border-espresso-border sticky top-0 z-10">
-        <div className="max-w-2xl mx-auto flex px-5">
-          {(["hoy", "todos", "lista"] as Tab[]).map((t) => (
-            <button
-              key={t}
-              onClick={() => setTab(t)}
-              className={[
-                "px-4 py-3 text-sm font-semibold border-b-2 transition-colors cursor-pointer whitespace-nowrap",
-                tab === t
-                  ? "text-verde border-verde"
-                  : "text-muted border-transparent hover:text-crema hover:bg-espresso-medium",
-              ].join(" ")}
-            >
-              {t === "hoy" ? "🏟️ Hoy" : t === "todos" ? "📅 Todos" : "⭐ Mi Lista"}
-            </button>
-          ))}
-        </div>
-      </nav>
+      {/* ── CONTENT ── */}
+      <main className="flex-1 px-4 pt-4 pb-24">
 
-      {/* Content */}
-      <main className="max-w-2xl mx-auto w-full px-4 py-4 flex-1">
-        {/* Stats */}
-        <div className="grid grid-cols-3 rounded-xl overflow-hidden border border-espresso-border mb-4">
-          {[
-            { n: todayMatches.length, l: "Hoy" },
-            { n: starCount,           l: "Mi lista" },
-            { n: remaining,           l: "Quedan" },
-          ].map(({ n, l }, i) => (
-            <div key={i} className="text-center py-3 px-2 bg-espresso-light border-r border-espresso-border last:border-r-0">
-              <div className="text-2xl font-extrabold text-verde leading-none">{n}</div>
-              <div className="text-[10px] text-muted uppercase tracking-widest mt-1">{l}</div>
+        {/* ════ HOY ════ */}
+        {tab === "hoy" && (
+          <>
+            {/* Date heading */}
+            <div className="flex items-baseline justify-between mb-[14px]">
+              <div className="font-display font-[900] text-[40px] uppercase leading-[0.85] tracking-[0.01em]">HOY</div>
+              <div className="font-mono text-[10px] font-bold uppercase tracking-[0.1em] text-muted">{todayDateStr}</div>
             </div>
-          ))}
-        </div>
 
-        {/* Login prompt si no hay usuario */}
-        {!user && (
-          <div className="flex items-center gap-3 rounded-xl px-4 py-3 mb-4 border border-espresso-border bg-espresso-light text-xs text-muted">
-            <span>🔑</span>
-            <span>Entra con Google para sincronizar tu lista entre dispositivos</span>
-          </div>
-        )}
-
-        {/* Stage filter (tab Todos) */}
-        {tab === "todos" && (
-          <div className="flex flex-wrap gap-1.5 mb-4">
-            {[{ label: "Todos", val: -1 }, ...STAGE_NAMES.map((n, i) => ({ label: n, val: i }))].map(({ label, val }) => (
-              <button
-                key={val}
-                onClick={() => setStageFilter(val)}
-                className={[
-                  "px-3 py-1 rounded-full border text-xs font-semibold transition-colors cursor-pointer",
-                  stageFilter === val
-                    ? "bg-verde text-espresso border-verde"
-                    : "border-espresso-border text-muted hover:border-verde hover:text-verde",
-                ].join(" ")}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-        )}
-
-        {/* Today banner */}
-        {tab === "hoy" && (() => {
-          const starredToday = todayMatches.filter(m => stars[m.id]);
-          if (!starredToday.length) return null;
-          return (
-            <div className="flex items-center gap-3 rounded-xl px-4 py-3 mb-4 border border-naranja/30 bg-naranja/10">
-              <span className="text-3xl">📺</span>
-              <div>
-                <div className="text-sm font-bold text-naranja">
-                  Tienes {starredToday.length} partido{starredToday.length > 1 ? "s" : ""} marcado{starredToday.length > 1 ? "s" : ""} hoy
-                </div>
-                <div className="text-xs text-muted mt-0.5">
-                  {starredToday.map(m => `${m.t1} vs ${m.t2}`).join(" · ")}
-                </div>
+            {/* Stats bar */}
+            <div className="flex border-2 border-ink rounded-[6px] overflow-hidden mb-[14px]">
+              <div className="flex-1 py-[10px] px-2 text-center bg-ink border-r-2 border-ink">
+                <div className="font-display font-[800] text-[28px] leading-[0.9] text-cream">{todayMatches.length}</div>
+                <div className="font-mono text-[8.5px] font-bold uppercase tracking-[0.1em] text-muted-2 mt-[3px]">Hoy</div>
+              </div>
+              <div className="flex-1 py-[10px] px-2 text-center border-r-2 border-ink">
+                <div className="font-display font-[800] text-[28px] leading-[0.9] text-gold-t">{starCount}</div>
+                <div className="font-mono text-[8.5px] font-bold uppercase tracking-[0.1em] text-muted mt-[3px]">Guardados</div>
+              </div>
+              <div className="flex-1 py-[10px] px-2 text-center">
+                <div className="font-display font-[800] text-[28px] leading-[0.9] text-cobalt">{remaining}</div>
+                <div className="font-mono text-[8.5px] font-bold uppercase tracking-[0.1em] text-muted mt-[3px]">Faltan</div>
               </div>
             </div>
+
+            {/* EN VIVO AHORA */}
+            {liveToday.length > 0 && (
+              <>
+                <div className="flex items-center gap-2 mb-[10px]">
+                  <div className="relative w-[9px] h-[9px] shrink-0">
+                    <div className="absolute inset-0 w-[9px] h-[9px] bg-vermilion rounded-full animate-livedot z-10" />
+                    <div className="absolute -top-1 -left-1 w-[17px] h-[17px] border-2 border-vermilion rounded-full animate-livering" />
+                  </div>
+                  <span className="font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-vermilion">
+                    EN VIVO AHORA
+                  </span>
+                  <div className="flex-1 h-[1.5px] bg-vermilion opacity-40" />
+                </div>
+                {sortedByTime(liveToday).map(m => <MatchCard key={m.id} {...cardProps(m)} />)}
+              </>
+            )}
+
+            {/* Próximos hoy */}
+            {upcomingToday.length > 0 && (
+              <>
+                <SectionHeader label="Próximos hoy" color="#1B1714" />
+                {sortedByTime(upcomingToday).map(m => <MatchCard key={m.id} {...cardProps(m)} />)}
+              </>
+            )}
+
+            {/* Finalizados hoy */}
+            {doneToday.length > 0 && (
+              <>
+                <SectionHeader label="Finalizados" color="#7A7060" />
+                {sortedByTime(doneToday).map(m => <MatchCard key={m.id} {...cardProps(m)} />)}
+              </>
+            )}
+
+            {/* No hay partidos hoy */}
+            {todayMatches.length === 0 && (
+              <EmptyState
+                icon="⚽"
+                title="Sin partidos<br/>hoy"
+                copy="Revisa la pestaña Todos para ver todos los partidos del torneo."
+                cta="Ver todos los partidos →"
+                onCta={() => setTab("todos")}
+              />
+            )}
+          </>
+        )}
+
+        {/* ════ TODOS ════ */}
+        {tab === "todos" && (
+          <>
+            {/* Phase filter pills */}
+            <div className="flex gap-[7px] mb-[14px] overflow-x-auto pb-1 scrollbar-none">
+              {[{ label: "Todos", val: -1 }, ...STAGE_NAMES.map((n, i) => ({ label: n, val: i }))].map(({ label, val }) => (
+                <button
+                  key={val}
+                  onClick={() => setStageFilter(val)}
+                  className={[
+                    "font-mono text-[10px] font-bold uppercase tracking-[0.08em] px-[14px] py-[6px]",
+                    "border-2 border-ink rounded-[20px] whitespace-nowrap transition-colors cursor-pointer shrink-0",
+                    stageFilter === val ? "bg-ink text-cream" : "bg-transparent text-ink hover:bg-card-2",
+                  ].join(" ")}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            {/* Filtered: group by day */}
+            {stageFilter >= 0 && (() => {
+              const list = allMatches.filter(m => m.s === stageFilter);
+              const dayGroups = groupByDay(list);
+              return Object.keys(dayGroups).sort().map(k => {
+                const ms = sortedByTime(dayGroups[k]);
+                return (
+                  <div key={k}>
+                    <DayHeader dateKey={k} firstMatchUtc={ms[0].u} />
+                    {ms.map(m => <MatchCard key={m.id} {...cardProps(m)} />)}
+                  </div>
+                );
+              });
+            })()}
+
+            {/* All: group by stage */}
+            {stageFilter < 0 && (() => {
+              const stageGroups = groupByStage(allMatches);
+              return Object.keys(stageGroups)
+                .map(Number)
+                .sort((a, b) => a - b)
+                .map(s => {
+                  const ms = sortedByTime(stageGroups[s]);
+                  return (
+                    <div key={s}>
+                      <SectionHeader label={STAGE_DISPLAY[s]} color={STAGE_HEADER_COLOR[s]} />
+                      {ms.map(m => <MatchCard key={m.id} {...cardProps(m)} />)}
+                    </div>
+                  );
+                });
+            })()}
+          </>
+        )}
+
+        {/* ════ MI LISTA ════ */}
+        {tab === "lista" && (() => {
+          const myMs = allMatches.filter(m => stars[m.id]);
+          if (myMs.length === 0) {
+            return (
+              <EmptyState
+                icon="☆"
+                title="Aún no<br/>guardas nada"
+                copy="Toca ☆ en cualquier partido para guardarlo aquí y compartirlo con el grupo."
+                cta="Ver partidos de hoy →"
+                onCta={() => setTab("hoy")}
+              />
+            );
+          }
+          const dayGroups = groupByDay(myMs);
+          return (
+            <>
+              <div className="flex items-center gap-2 mb-[14px]">
+                <span className="font-display font-[900] text-[22px] uppercase tracking-[0.01em] text-gold-t">
+                  ★ {myMs.length}
+                </span>
+                <span className="font-mono text-[9px] font-bold uppercase tracking-[0.1em] text-muted">
+                  guardado{myMs.length > 1 ? "s" : ""}
+                </span>
+              </div>
+              {Object.keys(dayGroups).sort().map(k => {
+                const ms = sortedByTime(dayGroups[k]);
+                return (
+                  <div key={k}>
+                    <DayHeader dateKey={k} firstMatchUtc={ms[0].u} />
+                    {ms.map(m => <MatchCard key={m.id} {...cardProps(m)} />)}
+                  </div>
+                );
+              })}
+            </>
           );
         })()}
-
-        {/* Match list */}
-        {Object.keys(groups).length === 0 ? (
-          <div className="text-center py-16 text-muted">
-            <div className="text-5xl mb-4">
-              {tab === "lista" ? "☆" : tab === "hoy" ? "😴" : "🔍"}
-            </div>
-            <p className="text-sm">
-              {tab === "lista"
-                ? "Marca partidos con ☆ Ver para agregarlos a tu lista"
-                : tab === "hoy"
-                ? "No hay partidos hoy"
-                : "Sin partidos"}
-            </p>
-          </div>
-        ) : (
-          Object.keys(groups).sort().map(k => (
-            <DayGroup
-              key={k}
-              dateKey={k}
-              matches={groups[k]}
-              stars={stars}
-              calDone={calDone}
-              onToggleStar={toggleStar}
-              onAddCal={addCal}
-            />
-          ))
-        )}
       </main>
 
-      {/* Toast */}
+      {/* ── BOTTOM NAV ── */}
+      <nav className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[390px] bg-card border-t-[2.5px] border-ink flex z-50">
+        {NAV_ITEMS.map(({ t, glyph, label }) => (
+          <button
+            key={t}
+            onClick={() => setTab(t)}
+            className={[
+              "flex-1 flex flex-col items-center pt-[10px] pb-3 gap-[3px]",
+              "cursor-pointer border-0 bg-transparent transition-colors relative",
+              tab === t ? "text-ink" : "text-muted-2 hover:text-muted",
+            ].join(" ")}
+          >
+            {tab === t && (
+              <div
+                className="absolute top-0 left-3 right-3 h-1 rounded-b-sm"
+                style={{ background: t === "lista" ? "#D69A2C" : "#1B1714" }}
+              />
+            )}
+            <span className="text-[16px] leading-none">{glyph}</span>
+            <span className="font-mono text-[9px] font-bold uppercase tracking-[0.08em]">{label}</span>
+          </button>
+        ))}
+      </nav>
+
+      {/* ── TOAST ── */}
       {toast && (
-        <div className={[
-          "fixed bottom-5 left-1/2 -translate-x-1/2 px-5 py-2.5 rounded-full text-sm font-semibold border shadow-lg z-50 whitespace-nowrap",
-          toast.ok
-            ? "bg-verde-dim border-verde text-white"
-            : "bg-red-900 border-rojo text-white",
-        ].join(" ")}>
+        <div
+          className={[
+            "fixed bottom-[80px] left-1/2 -translate-x-1/2",
+            "px-5 py-2.5 rounded-[6px] font-mono text-[12px] font-bold",
+            "border-2 border-ink z-[60] whitespace-nowrap shadow-hard-ink",
+            toast.ok ? "bg-cobalt text-cream" : "bg-vermilion text-cream",
+          ].join(" ")}
+        >
           {toast.msg}
         </div>
       )}
-    </>
+    </div>
   );
 }

@@ -36,17 +36,27 @@ export default function AuthButton() {
     setUser(null);
   };
 
-  if (loading) return <div className="w-8 h-8 rounded-full bg-espresso-border animate-pulse" />;
+  if (loading) {
+    return <div className="w-8 h-8 rounded-full bg-hairline animate-pulse" />;
+  }
 
   if (user) {
     return (
       <div className="flex items-center gap-2">
-        {user.user_metadata?.avatar_url && (
-          <img src={user.user_metadata.avatar_url} alt="" className="w-8 h-8 rounded-full" />
+        {user.user_metadata?.avatar_url ? (
+          <img
+            src={user.user_metadata.avatar_url}
+            alt=""
+            className="w-8 h-8 rounded-full border-2 border-ink"
+          />
+        ) : (
+          <div className="w-8 h-8 rounded-full bg-cobalt border-2 border-ink flex items-center justify-center font-display font-[800] text-[13px] text-cream">
+            {user.email?.charAt(0).toUpperCase()}
+          </div>
         )}
         <button
           onClick={signOut}
-          className="text-xs text-muted hover:text-crema transition-colors cursor-pointer"
+          className="font-mono text-[9px] font-bold uppercase tracking-[0.08em] text-muted hover:text-ink transition-colors cursor-pointer"
         >
           Salir
         </button>
@@ -57,9 +67,10 @@ export default function AuthButton() {
   return (
     <button
       onClick={signIn}
-      className="flex items-center gap-2 px-3 py-1.5 rounded-full border border-verde/30 bg-verde/10 text-verde text-xs font-semibold hover:bg-verde/20 transition-colors cursor-pointer"
+      className="flex items-center gap-1.5 px-3 py-1.5 rounded-[5px] border-2 border-ink bg-card text-ink font-mono text-[9px] font-bold uppercase tracking-[0.08em] hover:bg-card-2 transition-colors cursor-pointer shadow-hard-ink"
     >
-      <span>🔑</span> Entrar con Google
+      <span className="w-4 h-4 rounded-full bg-cobalt flex items-center justify-center text-cream font-bold text-[8px] shrink-0">G</span>
+      Entrar
     </button>
   );
 }

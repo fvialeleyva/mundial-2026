@@ -1,44 +1,68 @@
 @import "tailwindcss";
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  /* Fonts */
+  --font-sans:    var(--font-archivo);
+  --font-mono:    var(--font-space-mono);
+  --font-display: var(--font-big-shoulders);
 
-  /* Brand colors */
-  --color-espresso:        #1A1208;
-  --color-espresso-light:  #251910;
-  --color-espresso-medium: #2E2016;
-  --color-espresso-border: #3D2B18;
-  --color-verde:           #3EBD7A;
-  --color-verde-dim:       #2A8A58;
-  --color-crema:           #F0E8D4;
-  --color-muted:           #9A8878;
-  --color-naranja:         #F4A261;
-  --color-rojo:            #E63946;
+  /* Design tokens */
+  --color-ink:       #1B1714;
+  --color-ink-2:     #2C261D;
+  --color-paper:     #F2ECDF;
+  --color-card:      #FCF8EE;
+  --color-card-2:    #F3EEE1;
+  --color-muted:     #7A7060;
+  --color-muted-2:   #A89A82;
+  --color-hairline:  #D8CDB7;
+  --color-cobalt:    #2B53C2;
+  --color-vermilion: #E04127;
+  --color-live-bg:   #16130E;
+  --color-gold:      #D69A2C;
+  --color-gold-t:    #B5860F;
+  --color-gold-soft: #F4E4BE;
+  --color-cream:     #FBF6EA;
 }
 
-:root {
-  --background: #1A1208;
-  --foreground: #F0E8D4;
+/* Desktop dot-pattern shell */
+html {
+  background-color: #E9E3D6;
+  background-image: radial-gradient(circle, rgba(27,23,20,0.05) 1.2px, transparent 1.3px);
+  background-size: 13px 13px;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: var(--font-sans), system-ui, -apple-system, sans-serif;
+  font-family: var(--font-sans), system-ui, sans-serif;
+  color: #1B1714;
 }
 
-@keyframes blink {
-  0%, 100% { opacity: 1; }
-  50%       { opacity: 0.4; }
+/* Live dot animations */
+@keyframes livedot {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%       { opacity: .3; transform: scale(.55); }
+}
+@keyframes livering {
+  0%   { transform: scale(.6); opacity: .8; }
+  100% { transform: scale(2);  opacity: 0; }
 }
 
-@keyframes live-pulse {
-  0%, 100% { background: rgba(230, 57, 70, 0.07); }
-  50%       { background: rgba(230, 57, 70, 0.13); }
+.animate-livedot  { animation: livedot  1.4s ease-in-out infinite; }
+.animate-livering { animation: livering 1.4s ease-out    infinite; }
+
+/* Hard offset shadows (no blur — brand signature) */
+.shadow-hard-ink    { box-shadow: 4px 4px 0 #1B1714; }
+.shadow-hard-verm   { box-shadow: 4px 4px 0 #E04127; }
+.shadow-hard-gold   { box-shadow: 3px 3px 0 #D69A2C; }
+.shadow-hard-gold-lg { box-shadow: 7px 7px 0 #D69A2C; }
+
+/* Diagonal stripes */
+.stripe-verm {
+  background: repeating-linear-gradient(45deg, #E04127 0 7px, transparent 7px 14px);
+}
+.stripe-gold {
+  background: repeating-linear-gradient(45deg, #D69A2C 0 7px, #B5860F 7px 14px);
 }
 
-.animate-blink     { animation: blink 2s ease-in-out infinite; }
-.animate-live      { animation: live-pulse 2s ease-in-out infinite; }
+/* Hide scrollbar for filter row */
+.scrollbar-none { scrollbar-width: none; }
+.scrollbar-none::-webkit-scrollbar { display: none; }
