@@ -248,7 +248,7 @@ export default function Tracker({ overrides = {} }: { overrides?: Record<number,
         {tab === "hoy" && (
           <>
             {/* Date heading */}
-            <div className="flex items-baseline justify-between mb-[14px]">
+            <div className="flex items-baseline justify-between mb-[14px] pt-2">
               <div className="font-display font-[900] text-[40px] uppercase leading-[0.85] tracking-[0.01em]">HOY</div>
               <div className="font-mono text-[10px] font-bold uppercase tracking-[0.1em] text-muted">{todayDateStr}</div>
             </div>
