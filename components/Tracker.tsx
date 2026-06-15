@@ -207,7 +207,7 @@ export default function Tracker({ overrides = {} }: { overrides?: Record<number,
   ];
 
   return (
-    <div className="max-w-[390px] mx-auto min-h-screen flex flex-col bg-paper text-ink">
+    <div className="max-w-2xl mx-auto min-h-screen flex flex-col bg-paper text-ink">
 
       {/* ── HEADER ── */}
       <header className="sticky top-0 z-10 bg-card border-b-[2.5px] border-ink px-4 py-[13px] flex items-center justify-between shrink-0">
@@ -220,11 +220,29 @@ export default function Tracker({ overrides = {} }: { overrides?: Record<number,
             Mundial &#x27;26
           </div>
         </div>
+
+        {/* Desktop nav — hidden on mobile */}
+        <div className="hidden md:flex items-center border-2 border-ink rounded-[6px] overflow-hidden">
+          {NAV_ITEMS.map(({ t, glyph, label }) => (
+            <button
+              key={t}
+              onClick={() => setTab(t)}
+              className={[
+                "px-4 py-1.5 font-mono text-[10px] font-bold uppercase tracking-[0.08em]",
+                "border-r-2 border-ink last:border-r-0 transition-colors cursor-pointer",
+                tab === t ? "bg-ink text-cream" : "text-muted-2 hover:bg-card-2 hover:text-ink",
+              ].join(" ")}
+            >
+              {glyph} {label}
+            </button>
+          ))}
+        </div>
+
         <AuthButton />
       </header>
 
       {/* ── CONTENT ── */}
-      <main className="flex-1 px-4 pt-4 pb-24">
+      <main className="flex-1 px-4 pt-4 pb-24 md:pb-8">
 
         {/* ════ HOY ════ */}
         {tab === "hoy" && (
@@ -391,7 +409,7 @@ export default function Tracker({ overrides = {} }: { overrides?: Record<number,
       </main>
 
       {/* ── BOTTOM NAV ── */}
-      <nav className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[390px] bg-card border-t-[2.5px] border-ink flex z-50">
+      <nav className="md:hidden fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-2xl bg-card border-t-[2.5px] border-ink flex z-50">
         {NAV_ITEMS.map(({ t, glyph, label }) => (
           <button
             key={t}
@@ -418,7 +436,7 @@ export default function Tracker({ overrides = {} }: { overrides?: Record<number,
       {toast && (
         <div
           className={[
-            "fixed bottom-[80px] left-1/2 -translate-x-1/2",
+            "fixed bottom-[80px] md:bottom-5 left-1/2 -translate-x-1/2",
             "px-5 py-2.5 rounded-[6px] font-mono text-[12px] font-bold",
             "border-2 border-ink z-[60] whitespace-nowrap shadow-hard-ink",
             toast.ok ? "bg-cobalt text-cream" : "bg-vermilion text-cream",
