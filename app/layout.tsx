@@ -22,6 +22,7 @@ const archivo = Archivo({
 export const metadata: Metadata = {
   title: "⚽ Mundial 2026 Tracker App",
   description: "No te pierdas ningún partido — USA · México · Canadá",
+  icons: { icon: "/favicon.svg" },
   openGraph: {
     title: "⚽ Mundial 2026 Tracker App",
     description: "No te pierdas ningún partido — USA · México · Canadá",
