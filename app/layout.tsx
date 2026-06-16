@@ -20,8 +20,21 @@ const archivo = Archivo({
 });
 
 export const metadata: Metadata = {
-  title: "Mundial 2026",
-  description: "Tracker de partidos del Mundial 2026 — USA · México · Canadá",
+  title: "⚽ Mundial 2026 Tracker App",
+  description: "No te pierdas ningún partido — USA · México · Canadá",
+  openGraph: {
+    title: "⚽ Mundial 2026 Tracker App",
+    description: "No te pierdas ningún partido — USA · México · Canadá",
+    url: "https://mundial-2026-sepia-sigma.vercel.app",
+    siteName: "Mundial 2026",
+    locale: "es_ES",
+    type: "website",
+  },
+  twitter: {
+    card: "summary",
+    title: "⚽ Mundial 2026 Tracker App",
+    description: "No te pierdas ningún partido — USA · México · Canadá",
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
