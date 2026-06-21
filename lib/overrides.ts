@@ -6,7 +6,7 @@ export async function getOverrides(): Promise<Record<number, Partial<Match>>> {
     const supabase = await createClient();
     const { data } = await supabase
       .from("match_overrides")
-      .select("match_id, t1, f1, t2, f2");
+      .select("match_id, t1, f1, t2, f2, r, done");
     if (!data) return {};
     const result: Record<number, Partial<Match>> = {};
     for (const row of data) {
@@ -15,6 +15,8 @@ export async function getOverrides(): Promise<Record<number, Partial<Match>>> {
       if (row.f1 !== null) override.f1 = row.f1;
       if (row.t2 !== null) override.t2 = row.t2;
       if (row.f2 !== null) override.f2 = row.f2;
+      if (row.r !== null) override.r = row.r;
+      if (row.done !== null) override.done = row.done;
       result[row.match_id] = override;
     }
     return result;
