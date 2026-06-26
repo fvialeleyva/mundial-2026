@@ -158,7 +158,9 @@ export default function AdminPanel({
   knockoutMatches: Match[];
   overrides: Record<number, Partial<Match>>;
 }) {
-  // Group all matches by day key (YYYY-MM-DD Lima)
+  const [tab, setTab] = useState<"resultados" | "equipos">("resultados");
+
+  // Group all matches by day
   const byDay: Record<string, Match[]> = {};
   for (const m of allMatches) {
     const d = new Date(m.u).toLocaleDateString("es-PE", { timeZone: "America/Lima", year: "numeric", month: "2-digit", day: "2-digit" });
@@ -166,7 +168,6 @@ export default function AdminPanel({
     byDay[d].push(m);
   }
   const days = Object.keys(byDay).sort((a, b) => {
-    // sort ascending by actual date
     const [da, ma, ya] = a.split("/");
     const [db, mb, yb] = b.split("/");
     return new Date(`${ya}-${ma}-${da}`).getTime() - new Date(`${yb}-${mb}-${db}`).getTime();
@@ -174,48 +175,69 @@ export default function AdminPanel({
 
   const stages = [1, 2, 3, 4, 5, 6];
 
+  const tabBtn = (t: typeof tab, label: string) => (
+    <button
+      onClick={() => setTab(t)}
+      className={[
+        "flex-1 py-2 text-xs font-bold uppercase tracking-widest transition-colors cursor-pointer",
+        tab === t
+          ? "bg-verde text-espresso"
+          : "text-muted hover:text-crema",
+      ].join(" ")}
+    >
+      {label}
+    </button>
+  );
+
   return (
     <div>
-      {/* ── RESULTADOS ── */}
-      <div className="mb-10">
-        <div className="text-xs font-bold uppercase tracking-widest text-verde border-b border-espresso-border pb-2 mb-4">
-          Resultados
-        </div>
-        <p className="text-xs text-muted mb-4">
-          Ingresa el marcador final (ej: <span className="text-crema font-mono">2-1</span>). Al guardar el partido queda marcado como finalizado.
-        </p>
-        {days.map(day => (
-          <div key={day} className="mb-4">
-            <div className="text-xs font-bold text-muted uppercase tracking-widest mb-1">{day}</div>
-            <div className="border border-espresso-border rounded-xl bg-espresso-light px-4 py-1">
-              {byDay[day].map(m => (
-                <ResultRow key={m.id} match={m} override={overrides[m.id] ?? {}} />
-              ))}
-            </div>
-          </div>
-        ))}
+      {/* Tab switcher */}
+      <div className="flex border border-espresso-border rounded-lg overflow-hidden mb-6">
+        {tabBtn("resultados", "Resultados")}
+        {tabBtn("equipos", "Equipos Knockout")}
       </div>
 
-      {/* ── EQUIPOS KNOCKOUT ── */}
-      <div>
-        <div className="text-xs font-bold uppercase tracking-widest text-muted border-b border-espresso-border pb-2 mb-4">
-          Equipos Knockout
-        </div>
-        {stages.map(s => {
-          const group = knockoutMatches.filter(m => m.s === s);
-          if (!group.length) return null;
-          return (
-            <div key={s} className="mb-8">
-              <div className="text-xs font-bold uppercase tracking-widest text-muted border-b border-espresso-border pb-2 mb-3">
-                {STAGE_NAMES[s]}
+      {/* ── RESULTADOS ── */}
+      {tab === "resultados" && (
+        <div>
+          <p className="text-xs text-muted mb-4">
+            Ingresa el marcador final (ej: <span className="text-crema font-mono">2-1</span>). Al guardar el partido queda marcado como finalizado.
+          </p>
+          {days.map(day => (
+            <div key={day} className="mb-4">
+              <div className="text-xs font-bold text-muted uppercase tracking-widest mb-1">{day}</div>
+              <div className="border border-espresso-border rounded-xl bg-espresso-light px-4 py-1">
+                {byDay[day].map(m => (
+                  <ResultRow key={m.id} match={m} override={overrides[m.id] ?? {}} />
+                ))}
               </div>
-              {group.map(m => (
-                <TeamRow key={m.id} match={m} override={overrides[m.id] ?? {}} />
-              ))}
             </div>
-          );
-        })}
-      </div>
+          ))}
+        </div>
+      )}
+
+      {/* ── EQUIPOS KNOCKOUT ── */}
+      {tab === "equipos" && (
+        <div>
+          <p className="text-xs text-muted mb-4">
+            Actualiza los nombres cuando se confirmen los enfrentamientos.
+          </p>
+          {stages.map(s => {
+            const group = knockoutMatches.filter(m => m.s === s);
+            if (!group.length) return null;
+            return (
+              <div key={s} className="mb-8">
+                <div className="text-xs font-bold uppercase tracking-widest text-muted border-b border-espresso-border pb-2 mb-3">
+                  {STAGE_NAMES[s]}
+                </div>
+                {group.map(m => (
+                  <TeamRow key={m.id} match={m} override={overrides[m.id] ?? {}} />
+                ))}
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
