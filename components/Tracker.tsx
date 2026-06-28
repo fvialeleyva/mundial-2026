@@ -98,6 +98,19 @@ export default function Tracker({ overrides = {} }: { overrides?: Record<number,
   const allMatches = MATCHES.map(m => ({ ...m, ...(overrides[m.id] ?? {}) }));
   const [tab, setTab] = useState<Tab>("hoy");
   const [stageFilter, setStageFilter] = useState(-1);
+
+  // Scroll to today's first match when entering "todos" tab
+  useEffect(() => {
+    if (tab !== "todos") return;
+    const today = todayKey();
+    const target = [...allMatches]
+      .sort((a, b) => new Date(a.u).getTime() - new Date(b.u).getTime())
+      .find(m => limaDateKey(m.u) >= today);
+    if (!target) return;
+    setTimeout(() => {
+      document.getElementById(`match-${target.id}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 50);
+  }, [tab]);
   const [stars, setStars] = useState<Record<number, boolean>>({});
   const [calDone, setCalDone] = useState<Record<number, boolean>>({});
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
@@ -344,7 +357,7 @@ export default function Tracker({ overrides = {} }: { overrides?: Record<number,
                 return (
                   <div key={k}>
                     <DayHeader dateKey={k} firstMatchUtc={ms[0].u} />
-                    {ms.map(m => <MatchCard key={m.id} {...cardProps(m)} />)}
+                    {ms.map(m => <div key={m.id} id={`match-${m.id}`}><MatchCard {...cardProps(m)} /></div>)}
                   </div>
                 );
               });
@@ -361,7 +374,7 @@ export default function Tracker({ overrides = {} }: { overrides?: Record<number,
                   return (
                     <div key={s}>
                       <SectionHeader label={STAGE_DISPLAY[s]} color={STAGE_HEADER_COLOR[s]} />
-                      {ms.map(m => <MatchCard key={m.id} {...cardProps(m)} />)}
+                      {ms.map(m => <div key={m.id} id={`match-${m.id}`}><MatchCard {...cardProps(m)} /></div>)}
                     </div>
                   );
                 });
