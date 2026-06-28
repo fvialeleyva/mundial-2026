@@ -4,12 +4,13 @@ import { useState, useEffect, useCallback } from "react";
 import { MATCHES, STAGE_NAMES } from "@/lib/matches";
 import { limaDateKey, todayKey, dayLabel, gcalDate, isLive, isPast } from "@/lib/timezone";
 import MatchCard from "./MatchCard";
+import BracketView from "./BracketView";
 import AuthButton from "./AuthButton";
 import { createClient } from "@/lib/supabase/client";
 import { Match } from "@/types";
 import { User } from "@supabase/supabase-js";
 
-type Tab = "hoy" | "todos" | "lista";
+type Tab = "hoy" | "todos" | "lista" | "llave";
 
 const STAGE_DISPLAY = [
   "Fase de Grupos", "Ronda de 32", "Octavos de Final",
@@ -217,6 +218,7 @@ export default function Tracker({ overrides = {} }: { overrides?: Record<number,
     { t: "hoy",   glyph: "◉",                       label: "HOY"     },
     { t: "todos", glyph: "▦",                       label: "TODOS"   },
     { t: "lista", glyph: starCount > 0 ? "★" : "☆", label: "MI LISTA" },
+    { t: "llave", glyph: "⊞",                       label: "LLAVE"   },
   ];
 
   return (
@@ -419,6 +421,18 @@ export default function Tracker({ overrides = {} }: { overrides?: Record<number,
             </>
           );
         })()}
+        {/* ════ LLAVE ════ */}
+        {tab === "llave" && (
+          <div className="-mx-4 -mt-4">
+            <div className="px-4 pt-4 pb-2 flex items-baseline justify-between">
+              <div className="font-display font-[900] text-[34px] uppercase leading-[0.85] tracking-[0.01em]">LLAVE</div>
+              <div className="font-mono text-[9px] font-bold uppercase tracking-[0.1em] text-muted">scroll horizontal →</div>
+            </div>
+            <div className="px-4">
+              <BracketView matches={allMatches.filter(m => m.s >= 1 && m.s !== 5)} />
+            </div>
+          </div>
+        )}
       </main>
 
       {/* ── BOTTOM NAV ── */}
@@ -436,7 +450,7 @@ export default function Tracker({ overrides = {} }: { overrides?: Record<number,
             {tab === t && (
               <div
                 className="absolute top-0 left-3 right-3 h-1 rounded-b-sm"
-                style={{ background: t === "lista" ? "#D69A2C" : "#1B1714" }}
+                style={{ background: t === "lista" ? "#D69A2C" : t === "llave" ? "#2B53C2" : "#1B1714" }}
               />
             )}
             <span className="text-[16px] leading-none">{glyph}</span>
