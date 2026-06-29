@@ -12,10 +12,10 @@ const ROUNDS: { label: string; ids: number[] }[] = [
   { label: "Final",     ids: [104] },
 ];
 
-const SLOT_H  = 88;   // height of each slot in R32 (doubles each round)
-const CARD_H  = 74;   // height of each match card
-const COL_W   = 144;  // column width
-const COL_GAP = 28;   // gap between columns (space for connectors)
+const SLOT_H  = 88;
+const CARD_H  = 72;
+const COL_W   = 150;
+const COL_GAP = 28;
 const TOTAL_H = SLOT_H * 16;
 
 const DAYS_SHORT   = ["Dom","Lun","Mar","Mié","Jue","Vie","Sáb"];
@@ -80,29 +80,46 @@ function MatchCard({ match: m, top, left }: { match: Match; top: number; left: n
   const end = new Date(start.getTime() + 110 * 60_000);
   const live = !m.done && start <= now && now <= end;
 
+  const ph1 = isPlaceholder(m.t1);
+  const ph2 = isPlaceholder(m.t2);
+  const pending = ph1 && ph2;
+
+  const isFinal = m.s === 6;
+  const isSemi  = m.s === 4 || m.s === 5;
+
+  let shadow = "";
+  if (live)        shadow = "shadow-[2px_2px_0_#E04127]";
+  else if (pending) shadow = "";
+  else if (isFinal) shadow = "shadow-[4px_4px_0_#D69A2C]";
+  else if (isSemi)  shadow = "shadow-[3px_3px_0_#D69A2C]";
+  else if (m.s >= 2) shadow = "shadow-[2px_2px_0_#2B53C2]";
+
   return (
     <div
       style={{ position: "absolute", top, left, width: COL_W, height: CARD_H }}
       className={[
-        "border-[2px] border-ink rounded-[5px] overflow-hidden flex flex-col",
-        live ? "shadow-[2px_2px_0_#E04127]" : m.done ? "opacity-90" : "",
+        "rounded-[6px] overflow-hidden flex flex-col",
+        pending
+          ? "border-[2px] border-dashed border-hairline bg-card-2"
+          : `border-[${isFinal ? "3" : "2"}px] border-ink bg-card`,
+        shadow,
       ].join(" ")}
     >
       {live && (
-        <div className="h-[3px] bg-vermilion" style={{
+        <div className="h-[3px]" style={{
           backgroundImage: "repeating-linear-gradient(45deg,#E04127 0 5px,transparent 5px 10px)"
         }} />
       )}
-      <div className="flex-1 bg-card flex flex-col justify-center divide-y divide-hairline">
+      <div className="flex-1 flex flex-col justify-center divide-y divide-hairline">
         <TeamRow flag={m.f1} name={m.t1} score={s1} isWinner={w1} isLoser={w2} />
         <TeamRow flag={m.f2} name={m.t2} score={s2} isWinner={w2} isLoser={w1} />
       </div>
       <div className="bg-card-2 border-t border-hairline px-[7px] py-[3px] flex items-center justify-between shrink-0">
-        <span className="font-mono text-[8px] text-muted uppercase tracking-wide leading-none">
+        <span className="font-mono text-[7.5px] text-muted uppercase tracking-[0.05em] leading-none">
           {shortDate(m.u)}
         </span>
         <span className={[
-          "font-mono text-[8px] font-bold uppercase tracking-wide leading-none",
+          "font-mono text-[7.5px] font-bold uppercase tracking-[0.05em] leading-none",
           live ? "text-vermilion" : "text-muted",
         ].join(" ")}>
           {live ? "EN VIVO" : limaTime(m.u)}
